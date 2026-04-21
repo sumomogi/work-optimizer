@@ -1,25 +1,21 @@
 import { useState, useEffect } from "react";
 import {
-  AreaChart, Area, BarChart, Bar, ScatterChart, Scatter,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
+  ComposedChart, Bar, Line, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 
-const STORAGE_KEY = "wco-logs-v1";
+const LOGS_KEY = "wco-logs-v2";
+const SETTINGS_KEY = "wco-settings-v1";
 
 const getTodayStr = () => new Date().toISOString().split("T")[0];
+const getMonthStr = () => new Date().toISOString().slice(0, 7);
 
 const formatDate = (dateStr) => {
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString("ja-JP", { month: "short", day: "numeric", weekday: "short" });
 };
 
-const getWeekKey = (dateStr) => {
-  const d = new Date(dateStr + "T00:00:00");
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const mon = new Date(d.setDate(diff));
-  return mon.toISOString().split("T")[0];
-};
+const formatYen = (v) => `¥${Math.round(v).toLocaleString("ja-JP")}`;
 
 const conditionEmoji = (v) => {
   if (v >= 9) return "🌟";
@@ -44,48 +40,79 @@ const conditionColor = (v) => {
   return "#C47A6A";
 };
 
+// ── Input helpers ──
+const parseYen = (s) => parseInt(String(s).replace(/[,¥]/g, ""), 10) || 0;
+
 export default function App() {
   const [logs, setLogs] = useState([]);
+  const [settings, setSettings] = useState({ monthlyTarget: null, hourlyRate: null });
   const [tab, setTab] = useState("log");
-  const [hours, setHours] = useState(4);
+
+  // Form state
+  const [hours, setHours] = useState(6);
+  const [earnings, setEarnings] = useState("");
   const [condition, setCondition] = useState(null);
   const [notes, setNotes] = useState("");
   const [savedAnim, setSavedAnim] = useState(false);
   const [ready, setReady] = useState(false);
 
+  // Settings edit state
+  const [targetInput, setTargetInput] = useState("");
+  const [rateInput, setRateInput] = useState("");
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
   const today = getTodayStr();
+  const currentMonth = getMonthStr();
   const todayLog = logs.find((l) => l.date === today);
 
   useEffect(() => {
     try {
-      const value = localStorage.getItem(STORAGE_KEY);
-      if (value) {
-        const data = JSON.parse(value);
+      const savedLogs = localStorage.getItem(LOGS_KEY);
+      const savedSettings = localStorage.getItem(SETTINGS_KEY);
+      if (savedLogs) {
+        const data = JSON.parse(savedLogs);
         setLogs(data);
         const tl = data.find((l) => l.date === today);
         if (tl) {
           setHours(tl.hours);
+          setEarnings(tl.earnings ? String(tl.earnings) : "");
           setCondition(tl.condition);
           setNotes(tl.notes || "");
         }
+      }
+      if (savedSettings) {
+        const s = JSON.parse(savedSettings);
+        setSettings(s);
+        if (s.monthlyTarget) setTargetInput(String(s.monthlyTarget));
+        if (s.hourlyRate) setRateInput(String(s.hourlyRate));
       }
     } catch (_) {}
     setReady(true);
   }, []);
 
-  const persist = (newLogs) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newLogs));
-    } catch (_) {}
+  // Auto-fill earnings from hourly rate
+  useEffect(() => {
+    if (settings.hourlyRate && !todayLog) {
+      setEarnings(String(Math.round(settings.hourlyRate * hours)));
+    }
+  }, [hours, settings.hourlyRate]);
+
+  const persistLogs = (next) => {
+    try { localStorage.setItem(LOGS_KEY, JSON.stringify(next)); } catch (_) {}
+  };
+
+  const persistSettings = (next) => {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next)); } catch (_) {}
   };
 
   const saveLog = () => {
     if (condition === null) return;
-    const entry = { date: today, hours, condition, notes };
+    const earningsNum = parseYen(earnings);
+    const entry = { date: today, hours, earnings: earningsNum, condition, notes };
     const rest = logs.filter((l) => l.date !== today);
     const next = [...rest, entry].sort((a, b) => a.date.localeCompare(b.date));
     setLogs(next);
-    persist(next);
+    persistLogs(next);
     setSavedAnim(true);
     setTimeout(() => setSavedAnim(false), 1800);
   };
@@ -93,94 +120,110 @@ export default function App() {
   const deleteLog = (date) => {
     const next = logs.filter((l) => l.date !== date);
     setLogs(next);
-    persist(next);
+    persistLogs(next);
     if (date === today) {
-      setHours(4);
+      setHours(6);
+      setEarnings(settings.hourlyRate ? String(settings.hourlyRate * 6) : "");
       setCondition(null);
       setNotes("");
     }
   };
 
-  const buildInsights = () => {
-    if (logs.length < 5) return null;
-    const wMap = {};
-    logs.forEach(({ date, hours: h, condition: c }) => {
-      const wk = getWeekKey(date);
-      if (!wMap[wk]) wMap[wk] = { hours: 0, conds: [], days: 0 };
-      wMap[wk].hours += h;
-      wMap[wk].conds.push(c);
-      wMap[wk].days++;
-    });
-    const weeks = Object.entries(wMap)
-      .filter(([, w]) => w.days >= 2)
-      .map(([wk, w]) => ({
-        week: wk,
-        totalHours: +w.hours.toFixed(1),
-        avgCond: +(w.conds.reduce((a, b) => a + b, 0) / w.conds.length).toFixed(1),
-        days: w.days,
-      }))
-      .sort((a, b) => a.week.localeCompare(b.week));
-    if (weeks.length < 2) return null;
-
-    const sorted = [...weeks].sort((a, b) => b.avgCond - a.avgCond);
-    const topN = Math.max(1, Math.round(sorted.length * 0.35));
-    const topWeeks = sorted.slice(0, topN);
-    const optimalHours = +(topWeeks.reduce((a, b) => a + b.totalHours, 0) / topWeeks.length).toFixed(1);
-    const optimalCond = +(topWeeks.reduce((a, b) => a + b.avgCond, 0) / topWeeks.length).toFixed(1);
-
-    return { weeks, optimalHours, optimalCond, topWeeks };
+  const saveSettings = () => {
+    const next = {
+      monthlyTarget: targetInput ? parseYen(targetInput) : null,
+      hourlyRate: rateInput ? parseYen(rateInput) : null,
+    };
+    setSettings(next);
+    persistSettings(next);
+    setSettingsSaved(true);
+    setTimeout(() => setSettingsSaved(false), 1800);
   };
 
-  const insights = buildInsights();
+  // ── Analytics ──
+  const logsWithData = logs.filter((l) => l.earnings > 0 && l.hours > 0);
+
+  const buildOptimization = () => {
+    if (logsWithData.length < 5) return null;
+
+    const withEff = logsWithData.map((l) => ({
+      ...l,
+      hourlyRate: l.earnings / l.hours,
+      efficiency: (l.earnings / l.hours) * (l.condition / 10),
+    }));
+
+    const sorted = [...withEff].sort((a, b) => b.efficiency - a.efficiency);
+    const topN = Math.max(1, Math.round(sorted.length * 0.35));
+    const topDays = sorted.slice(0, topN);
+
+    const optimalHours = +(topDays.reduce((s, d) => s + d.hours, 0) / topDays.length).toFixed(1);
+    const optimalHourlyRate = Math.round(topDays.reduce((s, d) => s + d.hourlyRate, 0) / topDays.length);
+    const optimalDailyEarnings = Math.round(optimalHours * optimalHourlyRate);
+
+    let plan = null;
+    if (settings.monthlyTarget && optimalDailyEarnings > 0) {
+      const daysNeeded = Math.ceil(settings.monthlyTarget / optimalDailyEarnings);
+      const daysPerWeek = Math.ceil(daysNeeded / 4.3);
+      plan = { daysNeeded, daysPerWeek };
+    }
+
+    return { optimalHours, optimalHourlyRate, optimalDailyEarnings, plan };
+  };
+
+  const getMonthProgress = () => {
+    const monthLogs = logs.filter((l) => l.date.startsWith(currentMonth));
+    const totalEarned = monthLogs.reduce((s, l) => s + (l.earnings || 0), 0);
+    const totalHours = monthLogs.reduce((s, l) => s + l.hours, 0);
+    const days = monthLogs.length;
+    const avgDaily = days > 0 ? totalEarned / days : 0;
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysLeft = daysInMonth - now.getDate();
+    const projectedTotal = days > 0 ? Math.round(totalEarned + avgDaily * daysLeft * 0.7) : 0;
+    return { totalEarned, totalHours, days, avgDaily, daysLeft, projectedTotal };
+  };
+
+  const opt = buildOptimization();
+  const mp = getMonthProgress();
   const recentLogs = [...logs].slice(-21);
-  const avgCondition = logs.length
-    ? +(logs.reduce((a, b) => a + b.condition, 0) / logs.length).toFixed(1)
-    : null;
-  const avgHours = logs.length
-    ? +(logs.reduce((a, b) => a + b.hours, 0) / logs.length).toFixed(1)
-    : null;
 
   if (!ready) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#F4F2EE", fontFamily: "'Pretendard JP Variable', 'Hiragino Sans', sans-serif" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#F4F2EE", fontFamily: "'Pretendard JP Variable', sans-serif" }}>
       <div style={{ color: "#8A9E96", fontSize: 14 }}>読み込み中...</div>
     </div>
   );
 
+  const S = {
+    bg: "#F4F2EE",
+    card: "#fff",
+    primary: "#5A7A6A",
+    primaryDark: "#3D5C4E",
+    text: "#1E2A24",
+    textSub: "#4E6358",
+    textMuted: "#8A9E96",
+    textLight: "#A8B5AF",
+    border: "#DDD9D1",
+    borderSub: "#D5DDD9",
+    subtle: "#E8E4DC",
+    inputBg: "#F7F5F0",
+    shadow: "0 2px 16px rgba(0,0,0,0.05)",
+    shadowSm: "0 1px 8px rgba(0,0,0,0.04)",
+  };
+
   return (
-    <div style={{
-      fontFamily: "'Pretendard JP Variable', 'Hiragino Sans', 'Yu Gothic', sans-serif",
-      background: "#F4F2EE",
-      minHeight: "100vh",
-      maxWidth: 430,
-      margin: "0 auto",
-      display: "flex",
-      flexDirection: "column",
-      position: "relative",
-    }}>
+    <div style={{ fontFamily: "'Pretendard JP Variable', 'Hiragino Sans', 'Yu Gothic', sans-serif", background: S.bg, minHeight: "100vh", maxWidth: 430, margin: "0 auto", display: "flex", flexDirection: "column" }}>
+
       {/* Header */}
-      <div style={{
-        padding: "20px 24px 12px",
-        background: "#F4F2EE",
-        borderBottom: "1px solid #DDD9D1",
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
-      }}>
+      <div style={{ padding: "20px 24px 12px", background: S.bg, borderBottom: `1px solid ${S.border}`, position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 11, color: "#8A9E96", letterSpacing: "0.08em", marginBottom: 2 }}>WORK OPTIMIZER</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#1E2A24", letterSpacing: "-0.02em" }}>最適な労働時間</div>
+            <div style={{ fontSize: 11, color: S.textMuted, letterSpacing: "0.08em", marginBottom: 2 }}>SHIFT OPTIMIZER</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: S.text, letterSpacing: "-0.02em" }}>最適シフト設計</div>
           </div>
-          {logs.length > 0 && (
-            <div style={{
-              background: "#fff",
-              border: "1px solid #D5DDD9",
-              borderRadius: 12,
-              padding: "6px 12px",
-              fontSize: 12,
-              color: "#4E6358",
-            }}>
-              {logs.length}日の記録
+          {mp.days > 0 && (
+            <div style={{ background: S.card, border: `1px solid ${S.borderSub}`, borderRadius: 12, padding: "6px 12px", fontSize: 12, color: S.textSub, textAlign: "right" }}>
+              <div style={{ fontWeight: 700, color: S.primary }}>{formatYen(mp.totalEarned)}</div>
+              <div style={{ fontSize: 10, color: S.textMuted }}>今月 {mp.days}日</div>
             </div>
           )}
         </div>
@@ -189,224 +232,149 @@ export default function App() {
       {/* Content */}
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }}>
 
+        {/* ── 記録 tab ── */}
         {tab === "log" && (
           <div style={{ padding: "20px 24px" }}>
-            <div style={{
-              background: "#fff",
-              borderRadius: 20,
-              padding: "24px",
-              boxShadow: "0 2px 16px rgba(0,0,0,0.05)",
-              marginBottom: 16,
-            }}>
-              <div style={{ fontSize: 13, color: "#8A9E96", marginBottom: 4 }}>
-                {formatDate(today)}
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "#1E2A24", marginBottom: 24 }}>
+            <div style={{ background: S.card, borderRadius: 20, padding: 24, boxShadow: S.shadow, marginBottom: 16 }}>
+              <div style={{ fontSize: 13, color: S.textMuted, marginBottom: 4 }}>{formatDate(today)}</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: S.text, marginBottom: 24 }}>
                 今日の記録 {todayLog ? "✓" : ""}
               </div>
 
-              <div style={{ marginBottom: 28 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#4E6358", marginBottom: 12 }}>
-                  今日は何時間働きましたか？
-                </div>
+              {/* Hours */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: S.textSub, marginBottom: 12 }}>何時間働きましたか？</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                  <button
-                    onClick={() => setHours(h => Math.max(0, +(h - 0.5).toFixed(1)))}
-                    style={{
-                      width: 40, height: 40, borderRadius: "50%",
-                      background: "#E8E4DC", border: "none",
-                      fontSize: 20, cursor: "pointer", color: "#1E2A24",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                  >−</button>
+                  <button onClick={() => setHours((h) => Math.max(0, +(h - 0.5).toFixed(1)))} style={{ width: 40, height: 40, borderRadius: "50%", background: S.subtle, border: "none", fontSize: 20, cursor: "pointer", color: S.text, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                   <div style={{ flex: 1, textAlign: "center" }}>
-                    <span style={{ fontSize: 42, fontWeight: 800, color: "#1E2A24", letterSpacing: "-0.03em" }}>{hours}</span>
-                    <span style={{ fontSize: 16, color: "#8A9E96", marginLeft: 4 }}>時間</span>
+                    <span style={{ fontSize: 42, fontWeight: 800, color: S.text, letterSpacing: "-0.03em" }}>{hours}</span>
+                    <span style={{ fontSize: 16, color: S.textMuted, marginLeft: 4 }}>時間</span>
                   </div>
-                  <button
-                    onClick={() => setHours(h => Math.min(24, +(h + 0.5).toFixed(1)))}
-                    style={{
-                      width: 40, height: 40, borderRadius: "50%",
-                      background: "#E8E4DC", border: "none",
-                      fontSize: 20, cursor: "pointer", color: "#1E2A24",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                  >+</button>
+                  <button onClick={() => setHours((h) => Math.min(24, +(h + 0.5).toFixed(1)))} style={{ width: 40, height: 40, borderRadius: "50%", background: S.subtle, border: "none", fontSize: 20, cursor: "pointer", color: S.text, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                 </div>
-                <input
-                  type="range" min={0} max={16} step={0.5}
-                  value={hours}
-                  onChange={e => setHours(+e.target.value)}
-                  style={{ width: "100%", marginTop: 12, accentColor: "#5A7A6A" }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#A8B5AF", marginTop: 2 }}>
-                  <span>0時間</span><span>8時間</span><span>16時間</span>
+                <input type="range" min={0} max={16} step={0.5} value={hours} onChange={(e) => setHours(+e.target.value)} style={{ width: "100%", marginTop: 12, accentColor: S.primary }} />
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: S.textLight, marginTop: 2 }}>
+                  <span>0h</span><span>8h</span><span>16h</span>
                 </div>
               </div>
 
-              <div style={{ marginBottom: 28 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#4E6358", marginBottom: 12 }}>
-                  今日の体調は？
+              {/* Earnings */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: S.textSub, marginBottom: 8 }}>
+                  今日の収入
+                  {settings.hourlyRate && <span style={{ fontSize: 11, color: S.textMuted, fontWeight: 400, marginLeft: 6 }}>（¥{settings.hourlyRate.toLocaleString()}/時 × {hours}h で自動入力）</span>}
                 </div>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: S.textSub, fontWeight: 600 }}>¥</span>
+                  <input
+                    type="number"
+                    value={earnings}
+                    onChange={(e) => setEarnings(e.target.value)}
+                    placeholder="例: 8500"
+                    style={{ width: "100%", padding: "14px 14px 14px 30px", border: `1.5px solid ${S.borderSub}`, borderRadius: 12, fontSize: 18, fontWeight: 700, color: S.text, background: S.inputBg, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                  />
+                </div>
+                {earnings && hours > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: S.primary, fontWeight: 600 }}>
+                    → 時給効率 ¥{Math.round(parseYen(earnings) / hours).toLocaleString("ja-JP")}/時間
+                  </div>
+                )}
+              </div>
+
+              {/* Condition */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: S.textSub, marginBottom: 12 }}>今日の体調は？</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
-                  {[2, 4, 6, 8, 10].map(v => (
-                    <button
-                      key={v}
-                      onClick={() => setCondition(v)}
-                      style={{
-                        padding: "10px 4px",
-                        borderRadius: 14,
-                        border: condition === v ? "2px solid " + conditionColor(v) : "2px solid transparent",
-                        background: condition === v ? conditionColor(v) + "20" : "#E8E4DC",
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
+                  {[2, 4, 6, 8, 10].map((v) => (
+                    <button key={v} onClick={() => setCondition(v)} style={{ padding: "10px 4px", borderRadius: 14, border: condition === v ? `2px solid ${conditionColor(v)}` : "2px solid transparent", background: condition === v ? conditionColor(v) + "20" : S.subtle, cursor: "pointer", transition: "all 0.15s", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
                       <span style={{ fontSize: 20 }}>{conditionEmoji(v)}</span>
-                      <span style={{ fontSize: 10, color: condition === v ? conditionColor(v) : "#8A9E96", fontWeight: 600 }}>
-                        {conditionLabel(v)}
-                      </span>
-                      <span style={{ fontSize: 10, color: "#B8C4BE" }}>{v}/10</span>
+                      <span style={{ fontSize: 10, color: condition === v ? conditionColor(v) : S.textMuted, fontWeight: 600 }}>{conditionLabel(v)}</span>
+                      <span style={{ fontSize: 10, color: S.textLight }}>{v}/10</span>
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Notes */}
               <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#4E6358", marginBottom: 8 }}>
-                  メモ <span style={{ color: "#A8B5AF", fontWeight: 400 }}>（任意）</span>
+                <div style={{ fontSize: 13, fontWeight: 600, color: S.textSub, marginBottom: 8 }}>
+                  メモ <span style={{ color: S.textLight, fontWeight: 400 }}>（任意）</span>
                 </div>
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="特に辛かった部位や状況を書いておきましょう"
-                  rows={2}
-                  style={{
-                    width: "100%", padding: "12px",
-                    border: "1.5px solid #D5DDD9",
-                    borderRadius: 12, fontSize: 13, color: "#1E2A24",
-                    background: "#F7F5F0", resize: "none",
-                    outline: "none", boxSizing: "border-box",
-                    fontFamily: "inherit",
-                  }}
-                />
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="シフトや体調のメモ" rows={2} style={{ width: "100%", padding: 12, border: `1.5px solid ${S.borderSub}`, borderRadius: 12, fontSize: 13, color: S.text, background: S.inputBg, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
               </div>
 
-              <button
-                onClick={saveLog}
-                disabled={condition === null}
-                style={{
-                  width: "100%",
-                  padding: "16px",
-                  borderRadius: 14,
-                  border: "none",
-                  background: condition === null ? "#DDD9D1" : (savedAnim ? "#4A9A72" : "#5A7A6A"),
-                  color: condition === null ? "#8A9E96" : "#fff",
-                  fontSize: 15,
-                  fontWeight: 700,
-                  cursor: condition === null ? "not-allowed" : "pointer",
-                  transition: "background 0.3s",
-                  letterSpacing: "-0.01em",
-                }}
-              >
+              <button onClick={saveLog} disabled={condition === null} style={{ width: "100%", padding: 16, borderRadius: 14, border: "none", background: condition === null ? S.subtle : (savedAnim ? "#4A9A72" : S.primary), color: condition === null ? S.textMuted : "#fff", fontSize: 15, fontWeight: 700, cursor: condition === null ? "not-allowed" : "pointer", transition: "background 0.3s" }}>
                 {savedAnim ? "✓ 保存しました！" : todayLog ? "記録を更新" : "今日の記録を保存"}
               </button>
             </div>
 
-            {logs.length >= 3 && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div style={{ background: "#fff", borderRadius: 16, padding: 16, boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}>
-                  <div style={{ fontSize: 11, color: "#8A9E96", marginBottom: 4 }}>平均労働時間/日</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: "#1E2A24" }}>{avgHours}<span style={{ fontSize: 13, fontWeight: 400, color: "#8A9E96" }}>h</span></div>
-                </div>
-                <div style={{ background: "#fff", borderRadius: 16, padding: 16, boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}>
-                  <div style={{ fontSize: 11, color: "#8A9E96", marginBottom: 4 }}>平均体調</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: conditionColor(avgCondition) }}>
-                    {avgCondition}<span style={{ fontSize: 13, fontWeight: 400, color: "#8A9E96" }}>/10</span>
+            {/* Quick stats */}
+            {mp.days >= 3 && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                {[
+                  { label: "今月収入", value: formatYen(mp.totalEarned) },
+                  { label: "今月時間", value: `${mp.totalHours}h` },
+                  { label: "平均時給", value: mp.totalHours > 0 ? `¥${Math.round(mp.totalEarned / mp.totalHours).toLocaleString()}` : "—" },
+                ].map((s) => (
+                  <div key={s.label} style={{ background: S.card, borderRadius: 14, padding: "12px 10px", boxShadow: S.shadowSm, textAlign: "center" }}>
+                    <div style={{ fontSize: 10, color: S.textMuted, marginBottom: 4 }}>{s.label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: S.text }}>{s.value}</div>
                   </div>
-                </div>
+                ))}
               </div>
             )}
           </div>
         )}
 
+        {/* ── 履歴 tab ── */}
         {tab === "history" && (
           <div style={{ padding: "20px 24px" }}>
             {recentLogs.length >= 3 && (
-              <div style={{ background: "#fff", borderRadius: 20, padding: "20px", marginBottom: 16, boxShadow: "0 2px 16px rgba(0,0,0,0.05)" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#4E6358", marginBottom: 16 }}>最近の記録推移</div>
-                <ResponsiveContainer width="100%" height={180}>
-                  <AreaChart data={recentLogs} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="condGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#5A7A6A" stopOpacity={0.35} />
-                        <stop offset="100%" stopColor="#5A7A6A" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#DDD9D1" />
-                    <XAxis dataKey="date" tickFormatter={d => { const dt = new Date(d+"T00:00:00"); return (dt.getMonth()+1)+"/"+dt.getDate(); }} tick={{ fontSize: 10, fill: "#8A9E96" }} />
-                    <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: "#8A9E96" }} />
-                    <Tooltip formatter={(v, n) => [n === "condition" ? v+"/10" : v+"h", n === "condition" ? "体調" : "労働時間"]} contentStyle={{ borderRadius: 10, border: "1px solid #D5DDD9", fontSize: 12 }} />
-                    <Area type="monotone" dataKey="condition" stroke="#5A7A6A" fill="url(#condGrad)" strokeWidth={2} dot={{ r: 3, fill: "#5A7A6A" }} name="condition" />
-                  </AreaChart>
+              <div style={{ background: S.card, borderRadius: 20, padding: 20, marginBottom: 16, boxShadow: S.shadow }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: S.textSub, marginBottom: 4 }}>収入 & 体調の推移</div>
+                <div style={{ fontSize: 11, color: S.textMuted, marginBottom: 16 }}>棒 = 収入 · 線 = 体調</div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <ComposedChart data={recentLogs} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={S.border} />
+                    <XAxis dataKey="date" tickFormatter={(d) => { const dt = new Date(d + "T00:00:00"); return (dt.getMonth() + 1) + "/" + dt.getDate(); }} tick={{ fontSize: 10, fill: S.textMuted }} />
+                    <YAxis yAxisId="e" tick={{ fontSize: 10, fill: S.textMuted }} tickFormatter={(v) => v >= 10000 ? `${v / 10000}万` : `${v / 1000}k`} />
+                    <YAxis yAxisId="c" orientation="right" domain={[0, 10]} tick={{ fontSize: 10, fill: S.primary }} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 10, border: `1px solid ${S.borderSub}`, fontSize: 12 }}
+                      formatter={(v, n) => n === "condition" ? [`${v}/10`, "体調"] : [formatYen(v), "収入"]}
+                    />
+                    <Bar yAxisId="e" dataKey="earnings" fill="#C8D8D0" radius={[4, 4, 0, 0]} name="earnings" />
+                    <Line yAxisId="c" type="monotone" dataKey="condition" stroke={S.primary} strokeWidth={2} dot={{ r: 3, fill: S.primary }} name="condition" />
+                  </ComposedChart>
                 </ResponsiveContainer>
-
-                <div style={{ marginTop: 16 }}>
-                  <div style={{ fontSize: 12, color: "#8A9E96", marginBottom: 8 }}>労働時間 vs 体調</div>
-                  <ResponsiveContainer width="100%" height={140}>
-                    <ScatterChart margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#DDD9D1" />
-                      <XAxis type="number" dataKey="hours" name="労働時間" tick={{ fontSize: 10, fill: "#8A9E96" }} label={{ value: "時間/日", position: "insideBottom", offset: -2, fontSize: 10, fill: "#8A9E96" }} domain={[0, 12]} />
-                      <YAxis type="number" dataKey="condition" name="体調" domain={[0, 10]} tick={{ fontSize: 10, fill: "#8A9E96" }} />
-                      <Tooltip cursor={{ strokeDasharray: "3 3" }} formatter={(v, n) => [n === "condition" ? v+"/10" : v+"h", n === "condition" ? "体調" : "労働時間"]} contentStyle={{ borderRadius: 10, border: "1px solid #D5DDD9", fontSize: 12 }} />
-                      <Scatter data={recentLogs} fill="#5A7A6A" fillOpacity={0.7} />
-                    </ScatterChart>
-                  </ResponsiveContainer>
-                </div>
               </div>
             )}
 
+            {/* Log list */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[...logs].reverse().map(log => (
-                <div key={log.date} style={{
-                  background: "#fff",
-                  borderRadius: 16,
-                  padding: "14px 16px",
-                  boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 12,
-                    background: conditionColor(log.condition) + "20",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 22, flexShrink: 0,
-                  }}>
+              {[...logs].reverse().map((log) => (
+                <div key={log.date} style={{ background: S.card, borderRadius: 16, padding: "14px 16px", boxShadow: S.shadowSm, display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: conditionColor(log.condition) + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
                     {conditionEmoji(log.condition)}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1E2A24" }}>{formatDate(log.date)}</div>
-                    <div style={{ fontSize: 12, color: "#8A9E96", marginTop: 2 }}>
-                      {log.hours}時間労働 · 体調 <span style={{ color: conditionColor(log.condition), fontWeight: 600 }}>{log.condition}/10</span>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: S.text }}>{formatDate(log.date)}</div>
+                    <div style={{ fontSize: 12, color: S.textMuted, marginTop: 2 }}>
+                      {log.hours}h勤務 ·{" "}
+                      {log.earnings > 0 ? (
+                        <span style={{ color: S.primary, fontWeight: 600 }}>{formatYen(log.earnings)}</span>
+                      ) : "収入未入力"}
+                      {log.earnings > 0 && log.hours > 0 && (
+                        <span style={{ color: S.textLight }}> · ¥{Math.round(log.earnings / log.hours).toLocaleString()}/h</span>
+                      )}
                     </div>
-                    {log.notes && <div style={{ fontSize: 11, color: "#A8B5AF", marginTop: 2 }}>{log.notes}</div>}
+                    {log.notes && <div style={{ fontSize: 11, color: S.textLight, marginTop: 2 }}>{log.notes}</div>}
                   </div>
-                  <button
-                    onClick={() => deleteLog(log.date)}
-                    style={{
-                      background: "none", border: "none",
-                      color: "#B8C4BE", cursor: "pointer", fontSize: 16, padding: 4,
-                    }}
-                  >✕</button>
+                  <button onClick={() => deleteLog(log.date)} style={{ background: "none", border: "none", color: S.textLight, cursor: "pointer", fontSize: 16, padding: 4 }}>✕</button>
                 </div>
               ))}
               {logs.length === 0 && (
-                <div style={{ textAlign: "center", padding: "60px 20px", color: "#C8BFB5", fontSize: 14 }}>
+                <div style={{ textAlign: "center", padding: "60px 20px", color: S.textLight, fontSize: 14 }}>
                   まだ記録がありません。<br />今日の記録から始めましょう！
                 </div>
               )}
@@ -414,119 +382,152 @@ export default function App() {
           </div>
         )}
 
-        {tab === "insight" && (
+        {/* ── 最適化 tab ── */}
+        {tab === "optimize" && (
           <div style={{ padding: "20px 24px" }}>
-            {!insights ? (
-              <div style={{
-                background: "#fff", borderRadius: 20, padding: "40px 24px",
-                textAlign: "center", boxShadow: "0 2px 16px rgba(0,0,0,0.05)",
-              }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: "#1E2A24", marginBottom: 8 }}>
-                  データがもっと必要です
-                </div>
-                <div style={{ fontSize: 13, color: "#8A9E96", lineHeight: 1.7 }}>
-                  最低5日以上記録すると<br />最適な労働時間を分析します。<br />
-                  <span style={{ color: "#5A7A6A", fontWeight: 600 }}>現在 {logs.length}日記録済み</span>
-                </div>
-                <div style={{ marginTop: 20, background: "#EEF2EF", borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontSize: 12, color: "#8A9E96" }}>分析まで</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: "#5A7A6A" }}>{Math.max(0, 5 - logs.length)}日</div>
-                  <div style={{ fontSize: 12, color: "#8A9E96" }}>記録すれば大丈夫</div>
+
+            {/* Settings card */}
+            <div style={{ background: S.card, borderRadius: 20, padding: 20, marginBottom: 16, boxShadow: S.shadow }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: S.textSub, marginBottom: 16 }}>⚙️ 目標設定</div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: S.textMuted, marginBottom: 6 }}>月収目標</div>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: S.textSub, fontWeight: 600 }}>¥</span>
+                  <input type="number" value={targetInput} onChange={(e) => setTargetInput(e.target.value)} placeholder="例: 150000" style={{ width: "100%", padding: "12px 12px 12px 28px", border: `1.5px solid ${S.borderSub}`, borderRadius: 10, fontSize: 15, fontWeight: 600, color: S.text, background: S.inputBg, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
                 </div>
               </div>
-            ) : (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: S.textMuted, marginBottom: 6 }}>時給（設定すると収入を自動計算）</div>
+                <div style={{ position: "relative" }}>
+                  <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: S.textSub, fontWeight: 600 }}>¥</span>
+                  <input type="number" value={rateInput} onChange={(e) => setRateInput(e.target.value)} placeholder="例: 1200" style={{ width: "100%", padding: "12px 12px 12px 28px", border: `1.5px solid ${S.borderSub}`, borderRadius: 10, fontSize: 15, fontWeight: 600, color: S.text, background: S.inputBg, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
+                </div>
+              </div>
+              <button onClick={saveSettings} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: settingsSaved ? "#4A9A72" : S.primary, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "background 0.3s" }}>
+                {settingsSaved ? "✓ 保存しました" : "設定を保存"}
+              </button>
+            </div>
+
+            {/* Not enough data */}
+            {logsWithData.length < 5 && (
+              <div style={{ background: S.card, borderRadius: 20, padding: "32px 24px", textAlign: "center", boxShadow: S.shadow, marginBottom: 16 }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>📈</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: S.text, marginBottom: 8 }}>データを収集中</div>
+                <div style={{ fontSize: 13, color: S.textMuted, lineHeight: 1.7, marginBottom: 16 }}>
+                  収入を入力した日が<br />あと <span style={{ color: S.primary, fontWeight: 700 }}>{Math.max(0, 5 - logsWithData.length)}日</span> 分あれば分析できます
+                </div>
+                <div style={{ background: "#EEF2EF", borderRadius: 12, padding: "12px 16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: S.textMuted }}>データ収集進捗</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: S.primary }}>{logsWithData.length} / 5日</span>
+                  </div>
+                  <div style={{ marginTop: 8, background: S.border, borderRadius: 6, height: 6, overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min(100, (logsWithData.length / 5) * 100)}%`, height: "100%", background: S.primary, borderRadius: 6, transition: "width 0.4s" }} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Optimization result */}
+            {opt && (
               <>
-                <div style={{
-                  background: "linear-gradient(135deg, #5A7A6A, #3D5C4E)",
-                  borderRadius: 20, padding: "28px 24px",
-                  marginBottom: 16,
-                  boxShadow: "0 8px 24px rgba(90,122,106,0.3)",
-                }}>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 4 }}>
-                    データに基づく推薦
+                {/* Optimal pattern */}
+                <div style={{ background: `linear-gradient(135deg, ${S.primary}, ${S.primaryDark})`, borderRadius: 20, padding: "24px", marginBottom: 16, boxShadow: "0 8px 24px rgba(90,122,106,0.3)" }}>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 4 }}>データから導いた最適パターン</div>
+                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.9)", marginBottom: 20 }}>体調×効率が最も高かった日の平均</div>
+                  <div style={{ display: "flex", gap: 24 }}>
+                    <div>
+                      <div style={{ fontSize: 42, fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" }}>{opt.optimalHours}</div>
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>最適な時間/日</div>
+                    </div>
+                    <div style={{ borderLeft: "1px solid rgba(255,255,255,0.2)", paddingLeft: 24 }}>
+                      <div style={{ fontSize: 42, fontWeight: 900, color: "#fff", letterSpacing: "-0.03em" }}>¥{opt.optimalHourlyRate.toLocaleString()}</div>
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>期待時給</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
-                    体調が最も良かった週の平均
-                  </div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 56, fontWeight: 900, color: "#fff", letterSpacing: "-0.04em" }}>
-                      {insights.optimalHours}
-                    </span>
-                    <span style={{ fontSize: 20, color: "rgba(255,255,255,0.8)" }}>時間/週</span>
-                  </div>
-                  <div style={{ marginTop: 12, fontSize: 13, color: "rgba(255,255,255,0.8)" }}>
-                    この時の平均体調：<strong style={{ color: "#fff" }}>{insights.optimalCond}/10</strong>
+                  <div style={{ marginTop: 16, padding: "10px 14px", background: "rgba(255,255,255,0.12)", borderRadius: 10, fontSize: 13, color: "rgba(255,255,255,0.9)" }}>
+                    1日あたりの期待収入 <strong style={{ color: "#fff", fontSize: 15 }}>{formatYen(opt.optimalDailyEarnings)}</strong>
                   </div>
                 </div>
 
-                <div style={{ background: "#fff", borderRadius: 20, padding: "20px", marginBottom: 16, boxShadow: "0 2px 16px rgba(0,0,0,0.05)" }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#4E6358", marginBottom: 4 }}>
-                    週別労働時間と平均体調
-                  </div>
-                  <div style={{ fontSize: 11, color: "#8A9E96", marginBottom: 16 }}>
-                    棒グラフ = 週の総時間 · 折れ線 = 平均体調
-                  </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={insights.weeks} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#DDD9D1" />
-                      <XAxis dataKey="week" tickFormatter={w => { const d = new Date(w+"T00:00:00"); return (d.getMonth()+1)+"/"+(d.getDate()); }} tick={{ fontSize: 10, fill: "#8A9E96" }} />
-                      <YAxis yAxisId="h" domain={[0, 60]} tick={{ fontSize: 10, fill: "#8A9E96" }} />
-                      <YAxis yAxisId="c" orientation="right" domain={[0, 10]} tick={{ fontSize: 10, fill: "#5A7A6A" }} />
-                      <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #D5DDD9", fontSize: 12 }}
-                        formatter={(v, n) => [n === "totalHours" ? v+"h" : v+"/10", n === "totalHours" ? "週の労働" : "平均体調"]} />
-                      <Bar yAxisId="h" dataKey="totalHours" fill="#C8D8D0" radius={[6, 6, 0, 0]} name="totalHours" />
-                      <ReferenceLine yAxisId="h" y={insights.optimalHours} stroke="#5A7A6A" strokeDasharray="4 4" strokeWidth={1.5} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "#8A9E96" }}>
-                    <div style={{ width: 20, height: 2, borderTop: "2px dashed #5A7A6A" }}></div>
-                    推奨週間時間 ({insights.optimalHours}h)
-                  </div>
-                </div>
+                {/* Monthly shift plan */}
+                {opt.plan && settings.monthlyTarget && (
+                  <div style={{ background: S.card, borderRadius: 20, padding: 20, marginBottom: 16, boxShadow: S.shadow }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: S.textSub, marginBottom: 4 }}>月収 {formatYen(settings.monthlyTarget)} 達成プラン</div>
+                    <div style={{ fontSize: 11, color: S.textMuted, marginBottom: 20 }}>最適パターンで働いた場合の計算</div>
 
-                <div style={{ background: "#fff", borderRadius: 20, padding: "20px", marginBottom: 16, boxShadow: "0 2px 16px rgba(0,0,0,0.05)" }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#4E6358", marginBottom: 14 }}>
-                    体調が最高だった週 🏆
-                  </div>
-                  {insights.topWeeks.map((w, i) => (
-                    <div key={w.week} style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "10px 0",
-                      borderBottom: i < insights.topWeeks.length - 1 ? "1px solid #E8E4DC" : "none",
-                    }}>
-                      <div style={{
-                        width: 28, height: 28, borderRadius: 8,
-                        background: i === 0 ? "#FFD700" : i === 1 ? "#E8E8E8" : "#F5D5B0",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 13, fontWeight: 700, color: i === 0 ? "#9A7200" : "#888",
-                        flexShrink: 0,
-                      }}>
-                        {i + 1}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                      <div style={{ background: "#EEF5F1", borderRadius: 14, padding: 16, textAlign: "center" }}>
+                        <div style={{ fontSize: 36, fontWeight: 900, color: S.primary }}>{opt.plan.daysPerWeek}</div>
+                        <div style={{ fontSize: 12, color: S.textSub, fontWeight: 600 }}>日/週</div>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, color: "#1E2A24", fontWeight: 500 }}>
-                          {formatDate(w.week)}の週
-                        </div>
-                        <div style={{ fontSize: 11, color: "#8A9E96" }}>
-                          {w.totalHours}時間労働 · {w.days}日記録
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: conditionColor(w.avgCond) }}>
-                        {w.avgCond}/10
+                      <div style={{ background: "#EEF5F1", borderRadius: 14, padding: 16, textAlign: "center" }}>
+                        <div style={{ fontSize: 36, fontWeight: 900, color: S.primary }}>{opt.optimalHours}</div>
+                        <div style={{ fontSize: 12, color: S.textSub, fontWeight: 600 }}>時間/日</div>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                <div style={{ background: "#EEF5F1", borderRadius: 20, padding: "20px", border: "1px solid #C5DDD0" }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#3A6855", marginBottom: 10 }}>
-                    📌 活用のヒント
+                    <div style={{ background: S.subtle, borderRadius: 12, padding: "12px 14px", fontSize: 13, color: S.textSub }}>
+                      月 <strong style={{ color: S.text }}>{opt.plan.daysNeeded}日</strong> 勤務で
+                      <strong style={{ color: S.primary }}> {formatYen(settings.monthlyTarget)} </strong>
+                      達成の見込み
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13, color: "#4A7558", lineHeight: 1.8 }}>
-                    • 推奨時間より多い週に体調が下がる？ → 労働を減らすサイン<br />
-                    • 2週連続で体調6以下なら回復週を考えてみましょう<br />
-                    • データが増えるほど推薦精度が上がります
+                )}
+
+                {!settings.monthlyTarget && (
+                  <div style={{ background: S.card, borderRadius: 16, padding: 16, marginBottom: 16, boxShadow: S.shadowSm, border: `1px dashed ${S.borderSub}`, textAlign: "center", fontSize: 13, color: S.textMuted }}>
+                    月収目標を設定するとシフトプランが表示されます
+                  </div>
+                )}
+
+                {/* This month progress */}
+                {mp.days >= 1 && settings.monthlyTarget && (
+                  <div style={{ background: S.card, borderRadius: 20, padding: 20, marginBottom: 16, boxShadow: S.shadow }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: S.textSub, marginBottom: 16 }}>今月の進捗</div>
+
+                    {/* Progress bar */}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: S.textMuted, marginBottom: 6 }}>
+                        <span>{formatYen(mp.totalEarned)}</span>
+                        <span>目標 {formatYen(settings.monthlyTarget)}</span>
+                      </div>
+                      <div style={{ background: S.border, borderRadius: 8, height: 10, overflow: "hidden" }}>
+                        <div style={{ width: `${Math.min(100, (mp.totalEarned / settings.monthlyTarget) * 100)}%`, height: "100%", background: mp.totalEarned >= settings.monthlyTarget ? "#4A9A72" : S.primary, borderRadius: 8, transition: "width 0.4s" }} />
+                      </div>
+                      <div style={{ fontSize: 12, color: S.primary, fontWeight: 600, marginTop: 4 }}>
+                        {Math.round((mp.totalEarned / settings.monthlyTarget) * 100)}% 達成
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div style={{ background: S.subtle, borderRadius: 12, padding: 12 }}>
+                        <div style={{ fontSize: 11, color: S.textMuted, marginBottom: 2 }}>残り目標</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: S.text }}>
+                          {mp.totalEarned >= settings.monthlyTarget ? "達成！🎉" : formatYen(settings.monthlyTarget - mp.totalEarned)}
+                        </div>
+                      </div>
+                      <div style={{ background: S.subtle, borderRadius: 12, padding: 12 }}>
+                        <div style={{ fontSize: 11, color: S.textMuted, marginBottom: 2 }}>残り日数</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: S.text }}>{mp.daysLeft}日</div>
+                      </div>
+                    </div>
+
+                    {mp.totalEarned < settings.monthlyTarget && mp.avgDaily > 0 && (
+                      <div style={{ marginTop: 12, padding: "10px 14px", background: "#EEF5F1", borderRadius: 12, fontSize: 13, color: S.textSub }}>
+                        あと <strong style={{ color: S.text }}>{Math.ceil((settings.monthlyTarget - mp.totalEarned) / mp.avgDaily)}日</strong> 働けば達成できます
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tips */}
+                <div style={{ background: "#EEF5F1", borderRadius: 20, padding: 20, border: `1px solid #C5DDD0` }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#3A6855", marginBottom: 10 }}>📌 活用のヒント</div>
+                  <div style={{ fontSize: 13, color: "#4A7558", lineHeight: 1.9 }}>
+                    • 毎日記録するほどおすすめ精度が上がります<br />
+                    • 体調が悪い日は無理せず早上がりも◎<br />
+                    • 最適時間より長く働くと時給効率が下がる傾向があります
                   </div>
                 </div>
               </>
@@ -536,41 +537,15 @@ export default function App() {
       </div>
 
       {/* Bottom Nav */}
-      <div style={{
-        position: "fixed",
-        bottom: 0,
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: "100%",
-        maxWidth: 430,
-        background: "rgba(244,242,238,0.95)",
-        backdropFilter: "blur(12px)",
-        borderTop: "1px solid #DDD9D1",
-        display: "flex",
-        padding: "10px 0 20px",
-        zIndex: 20,
-      }}>
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(244,242,238,0.95)", backdropFilter: "blur(12px)", borderTop: `1px solid ${S.border}`, display: "flex", padding: "10px 0 20px", zIndex: 20 }}>
         {[
-          { id: "log", icon: "✏️", label: "今日の記録" },
-          { id: "history", icon: "📅", label: "履歴" },
-          { id: "insight", icon: "💡", label: "分析" },
-        ].map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            style={{
-              flex: 1, background: "none", border: "none",
-              cursor: "pointer", padding: "6px 0",
-              display: "flex", flexDirection: "column",
-              alignItems: "center", gap: 4,
-              opacity: tab === t.id ? 1 : 0.4,
-              transition: "opacity 0.15s",
-            }}
-          >
+          { id: "log", icon: "✏️", label: "記録" },
+          { id: "history", icon: "📊", label: "履歴" },
+          { id: "optimize", icon: "🎯", label: "最適化" },
+        ].map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, background: "none", border: "none", cursor: "pointer", padding: "6px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, opacity: tab === t.id ? 1 : 0.4, transition: "opacity 0.15s" }}>
             <span style={{ fontSize: 22 }}>{t.icon}</span>
-            <span style={{ fontSize: 10, fontWeight: tab === t.id ? 700 : 400, color: tab === t.id ? "#5A7A6A" : "#8A9E96" }}>
-              {t.label}
-            </span>
+            <span style={{ fontSize: 10, fontWeight: tab === t.id ? 700 : 400, color: tab === t.id ? S.primary : S.textMuted }}>{t.label}</span>
           </button>
         ))}
       </div>
