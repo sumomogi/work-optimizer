@@ -10,7 +10,7 @@ const getTodayStr = () => new Date().toISOString().split("T")[0];
 
 const formatDate = (dateStr) => {
   const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" });
+  return d.toLocaleDateString("ja-JP", { month: "short", day: "numeric", weekday: "short" });
 };
 
 const getWeekKey = (dateStr) => {
@@ -30,11 +30,11 @@ const conditionEmoji = (v) => {
 };
 
 const conditionLabel = (v) => {
-  if (v >= 9) return "최상";
-  if (v >= 7) return "좋음";
-  if (v >= 5) return "보통";
-  if (v >= 3) return "피로";
-  return "탈진";
+  if (v >= 9) return "最高";
+  if (v >= 7) return "良好";
+  if (v >= 5) return "普通";
+  if (v >= 3) return "疲れ";
+  return "消耗";
 };
 
 const conditionColor = (v) => {
@@ -141,14 +141,14 @@ export default function App() {
     : null;
 
   if (!ready) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#FAF9F6", fontFamily: "'Pretendard', 'Apple SD Gothic Neo', sans-serif" }}>
-      <div style={{ color: "#999", fontSize: 14 }}>불러오는 중...</div>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#FAF9F6", fontFamily: "'Pretendard JP Variable', 'Hiragino Sans', sans-serif" }}>
+      <div style={{ color: "#999", fontSize: 14 }}>読み込み中...</div>
     </div>
   );
 
   return (
     <div style={{
-      fontFamily: "'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
+      fontFamily: "'Pretendard JP Variable', 'Hiragino Sans', 'Yu Gothic', sans-serif",
       background: "#FAF9F6",
       minHeight: "100vh",
       maxWidth: 430,
@@ -169,7 +169,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 11, color: "#B0A898", letterSpacing: "0.08em", marginBottom: 2 }}>WORK OPTIMIZER</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1614", letterSpacing: "-0.02em" }}>내 최적 근무시간</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "#1A1614", letterSpacing: "-0.02em" }}>最適な労働時間</div>
           </div>
           {logs.length > 0 && (
             <div style={{
@@ -180,7 +180,7 @@ export default function App() {
               fontSize: 12,
               color: "#6B6157",
             }}>
-              {logs.length}일 기록
+              {logs.length}日の記録
             </div>
           )}
         </div>
@@ -202,12 +202,12 @@ export default function App() {
                 {formatDate(today)}
               </div>
               <div style={{ fontSize: 16, fontWeight: 600, color: "#1A1614", marginBottom: 24 }}>
-                오늘 기록 {todayLog ? "✓" : ""}
+                今日の記録 {todayLog ? "✓" : ""}
               </div>
 
               <div style={{ marginBottom: 28 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#6B6157", marginBottom: 12 }}>
-                  오늘 몇 시간 일했나요?
+                  今日は何時間働きましたか？
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                   <button
@@ -221,7 +221,7 @@ export default function App() {
                   >−</button>
                   <div style={{ flex: 1, textAlign: "center" }}>
                     <span style={{ fontSize: 42, fontWeight: 800, color: "#1A1614", letterSpacing: "-0.03em" }}>{hours}</span>
-                    <span style={{ fontSize: 16, color: "#B0A898", marginLeft: 4 }}>시간</span>
+                    <span style={{ fontSize: 16, color: "#B0A898", marginLeft: 4 }}>時間</span>
                   </div>
                   <button
                     onClick={() => setHours(h => Math.min(24, +(h + 0.5).toFixed(1)))}
@@ -240,13 +240,13 @@ export default function App() {
                   style={{ width: "100%", marginTop: 12, accentColor: "#D4845A" }}
                 />
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#C8BFB5", marginTop: 2 }}>
-                  <span>0시간</span><span>8시간</span><span>16시간</span>
+                  <span>0時間</span><span>8時間</span><span>16時間</span>
                 </div>
               </div>
 
               <div style={{ marginBottom: 28 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#6B6157", marginBottom: 12 }}>
-                  오늘 몸 컨디션은?
+                  今日の体調は？
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
                   {[2, 4, 6, 8, 10].map(v => (
@@ -278,12 +278,12 @@ export default function App() {
 
               <div style={{ marginBottom: 24 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "#6B6157", marginBottom: 8 }}>
-                  메모 <span style={{ color: "#C8BFB5", fontWeight: 400 }}>(선택)</span>
+                  メモ <span style={{ color: "#C8BFB5", fontWeight: 400 }}>（任意）</span>
                 </div>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  placeholder="특별히 힘들었던 부위나 상황을 적어두세요"
+                  placeholder="特に辛かった部位や状況を書いておきましょう"
                   rows={2}
                   style={{
                     width: "100%", padding: "12px",
@@ -313,18 +313,18 @@ export default function App() {
                   letterSpacing: "-0.01em",
                 }}
               >
-                {savedAnim ? "✓ 저장됐어요!" : todayLog ? "기록 업데이트" : "오늘 기록 저장"}
+                {savedAnim ? "✓ 保存しました！" : todayLog ? "記録を更新" : "今日の記録を保存"}
               </button>
             </div>
 
             {logs.length >= 3 && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div style={{ background: "#fff", borderRadius: 16, padding: 16, boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}>
-                  <div style={{ fontSize: 11, color: "#B0A898", marginBottom: 4 }}>평균 근무시간/일</div>
+                  <div style={{ fontSize: 11, color: "#B0A898", marginBottom: 4 }}>平均労働時間/日</div>
                   <div style={{ fontSize: 26, fontWeight: 800, color: "#1A1614" }}>{avgHours}<span style={{ fontSize: 13, fontWeight: 400, color: "#B0A898" }}>h</span></div>
                 </div>
                 <div style={{ background: "#fff", borderRadius: 16, padding: 16, boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}>
-                  <div style={{ fontSize: 11, color: "#B0A898", marginBottom: 4 }}>평균 컨디션</div>
+                  <div style={{ fontSize: 11, color: "#B0A898", marginBottom: 4 }}>平均体調</div>
                   <div style={{ fontSize: 26, fontWeight: 800, color: conditionColor(avgCondition) }}>
                     {avgCondition}<span style={{ fontSize: 13, fontWeight: 400, color: "#B0A898" }}>/10</span>
                   </div>
@@ -338,7 +338,7 @@ export default function App() {
           <div style={{ padding: "20px 24px" }}>
             {recentLogs.length >= 3 && (
               <div style={{ background: "#fff", borderRadius: 20, padding: "20px", marginBottom: 16, boxShadow: "0 2px 16px rgba(0,0,0,0.05)" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#6B6157", marginBottom: 16 }}>최근 기록 추이</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#6B6157", marginBottom: 16 }}>最近の記録推移</div>
                 <ResponsiveContainer width="100%" height={180}>
                   <AreaChart data={recentLogs} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                     <defs>
@@ -350,19 +350,19 @@ export default function App() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" />
                     <XAxis dataKey="date" tickFormatter={d => { const dt = new Date(d+"T00:00:00"); return (dt.getMonth()+1)+"/"+dt.getDate(); }} tick={{ fontSize: 10, fill: "#B0A898" }} />
                     <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: "#B0A898" }} />
-                    <Tooltip formatter={(v, n) => [n === "condition" ? v+"/10" : v+"h", n === "condition" ? "컨디션" : "근무시간"]} contentStyle={{ borderRadius: 10, border: "1px solid #EDE9E3", fontSize: 12 }} />
+                    <Tooltip formatter={(v, n) => [n === "condition" ? v+"/10" : v+"h", n === "condition" ? "体調" : "労働時間"]} contentStyle={{ borderRadius: 10, border: "1px solid #EDE9E3", fontSize: 12 }} />
                     <Area type="monotone" dataKey="condition" stroke="#D4845A" fill="url(#condGrad)" strokeWidth={2} dot={{ r: 3, fill: "#D4845A" }} name="condition" />
                   </AreaChart>
                 </ResponsiveContainer>
 
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ fontSize: 12, color: "#B0A898", marginBottom: 8 }}>근무시간 vs 컨디션</div>
+                  <div style={{ fontSize: 12, color: "#B0A898", marginBottom: 8 }}>労働時間 vs 体調</div>
                   <ResponsiveContainer width="100%" height={140}>
                     <ScatterChart margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#F0EDE8" />
-                      <XAxis type="number" dataKey="hours" name="근무시간" tick={{ fontSize: 10, fill: "#B0A898" }} label={{ value: "시간/일", position: "insideBottom", offset: -2, fontSize: 10, fill: "#B0A898" }} domain={[0, 12]} />
-                      <YAxis type="number" dataKey="condition" name="컨디션" domain={[0, 10]} tick={{ fontSize: 10, fill: "#B0A898" }} />
-                      <Tooltip cursor={{ strokeDasharray: "3 3" }} formatter={(v, n) => [n === "condition" ? v+"/10" : v+"h", n === "condition" ? "컨디션" : "근무시간"]} contentStyle={{ borderRadius: 10, border: "1px solid #EDE9E3", fontSize: 12 }} />
+                      <XAxis type="number" dataKey="hours" name="労働時間" tick={{ fontSize: 10, fill: "#B0A898" }} label={{ value: "時間/日", position: "insideBottom", offset: -2, fontSize: 10, fill: "#B0A898" }} domain={[0, 12]} />
+                      <YAxis type="number" dataKey="condition" name="体調" domain={[0, 10]} tick={{ fontSize: 10, fill: "#B0A898" }} />
+                      <Tooltip cursor={{ strokeDasharray: "3 3" }} formatter={(v, n) => [n === "condition" ? v+"/10" : v+"h", n === "condition" ? "体調" : "労働時間"]} contentStyle={{ borderRadius: 10, border: "1px solid #EDE9E3", fontSize: 12 }} />
                       <Scatter data={recentLogs} fill="#D4845A" fillOpacity={0.7} />
                     </ScatterChart>
                   </ResponsiveContainer>
@@ -392,7 +392,7 @@ export default function App() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1614" }}>{formatDate(log.date)}</div>
                     <div style={{ fontSize: 12, color: "#B0A898", marginTop: 2 }}>
-                      {log.hours}시간 근무 · 컨디션 <span style={{ color: conditionColor(log.condition), fontWeight: 600 }}>{log.condition}/10</span>
+                      {log.hours}時間労働 · 体調 <span style={{ color: conditionColor(log.condition), fontWeight: 600 }}>{log.condition}/10</span>
                     </div>
                     {log.notes && <div style={{ fontSize: 11, color: "#C8BFB5", marginTop: 2 }}>{log.notes}</div>}
                   </div>
@@ -407,7 +407,7 @@ export default function App() {
               ))}
               {logs.length === 0 && (
                 <div style={{ textAlign: "center", padding: "60px 20px", color: "#C8BFB5", fontSize: 14 }}>
-                  아직 기록이 없어요.<br />오늘 기록부터 시작해볼까요?
+                  まだ記録がありません。<br />今日の記録から始めましょう！
                 </div>
               )}
             </div>
@@ -423,16 +423,16 @@ export default function App() {
               }}>
                 <div style={{ fontSize: 48, marginBottom: 16 }}>📊</div>
                 <div style={{ fontSize: 16, fontWeight: 600, color: "#1A1614", marginBottom: 8 }}>
-                  데이터가 더 필요해요
+                  データがもっと必要です
                 </div>
                 <div style={{ fontSize: 13, color: "#B0A898", lineHeight: 1.7 }}>
-                  최소 5일 이상 기록하면<br />최적 근무시간을 분석해드려요.<br />
-                  <span style={{ color: "#D4845A", fontWeight: 600 }}>현재 {logs.length}일 기록됨</span>
+                  最低5日以上記録すると<br />最適な労働時間を分析します。<br />
+                  <span style={{ color: "#D4845A", fontWeight: 600 }}>現在 {logs.length}日記録済み</span>
                 </div>
                 <div style={{ marginTop: 20, background: "#FAF9F6", borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontSize: 12, color: "#B0A898" }}>분석까지</div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: "#D4845A" }}>{Math.max(0, 5 - logs.length)}일</div>
-                  <div style={{ fontSize: 12, color: "#B0A898" }}>더 기록하면 돼요</div>
+                  <div style={{ fontSize: 12, color: "#B0A898" }}>分析まで</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: "#D4845A" }}>{Math.max(0, 5 - logs.length)}日</div>
+                  <div style={{ fontSize: 12, color: "#B0A898" }}>記録すれば大丈夫</div>
                 </div>
               </div>
             ) : (
@@ -444,28 +444,28 @@ export default function App() {
                   boxShadow: "0 8px 24px rgba(212,132,90,0.3)",
                 }}>
                   <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 4 }}>
-                    데이터 기반 추천
+                    データに基づく推薦
                   </div>
                   <div style={{ fontSize: 14, color: "rgba(255,255,255,0.9)", marginBottom: 16 }}>
-                    컨디션이 가장 좋았던 주의 평균
+                    体調が最も良かった週の平均
                   </div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                     <span style={{ fontSize: 56, fontWeight: 900, color: "#fff", letterSpacing: "-0.04em" }}>
                       {insights.optimalHours}
                     </span>
-                    <span style={{ fontSize: 20, color: "rgba(255,255,255,0.8)" }}>시간/주</span>
+                    <span style={{ fontSize: 20, color: "rgba(255,255,255,0.8)" }}>時間/週</span>
                   </div>
                   <div style={{ marginTop: 12, fontSize: 13, color: "rgba(255,255,255,0.8)" }}>
-                    이때 평균 컨디션: <strong style={{ color: "#fff" }}>{insights.optimalCond}/10</strong>
+                    この時の平均体調：<strong style={{ color: "#fff" }}>{insights.optimalCond}/10</strong>
                   </div>
                 </div>
 
                 <div style={{ background: "#fff", borderRadius: 20, padding: "20px", marginBottom: 16, boxShadow: "0 2px 16px rgba(0,0,0,0.05)" }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#6B6157", marginBottom: 4 }}>
-                    주별 근무시간 & 평균 컨디션
+                    週別労働時間と平均体調
                   </div>
                   <div style={{ fontSize: 11, color: "#B0A898", marginBottom: 16 }}>
-                    막대 = 주당 총 시간 · 선 = 평균 컨디션
+                    棒グラフ = 週の総時間 · 折れ線 = 平均体調
                   </div>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={insights.weeks} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
@@ -474,20 +474,20 @@ export default function App() {
                       <YAxis yAxisId="h" domain={[0, 60]} tick={{ fontSize: 10, fill: "#B0A898" }} />
                       <YAxis yAxisId="c" orientation="right" domain={[0, 10]} tick={{ fontSize: 10, fill: "#D4845A" }} />
                       <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #EDE9E3", fontSize: 12 }}
-                        formatter={(v, n) => [n === "totalHours" ? v+"h" : v+"/10", n === "totalHours" ? "주당 근무" : "평균 컨디션"]} />
+                        formatter={(v, n) => [n === "totalHours" ? v+"h" : v+"/10", n === "totalHours" ? "週の労働" : "平均体調"]} />
                       <Bar yAxisId="h" dataKey="totalHours" fill="#EDE9E3" radius={[6, 6, 0, 0]} name="totalHours" />
                       <ReferenceLine yAxisId="h" y={insights.optimalHours} stroke="#D4845A" strokeDasharray="4 4" strokeWidth={1.5} />
                     </BarChart>
                   </ResponsiveContainer>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "#B0A898" }}>
                     <div style={{ width: 20, height: 2, borderTop: "2px dashed #D4845A" }}></div>
-                    추천 주당 시간 ({insights.optimalHours}h)
+                    推奨週間時間 ({insights.optimalHours}h)
                   </div>
                 </div>
 
                 <div style={{ background: "#fff", borderRadius: 20, padding: "20px", marginBottom: 16, boxShadow: "0 2px 16px rgba(0,0,0,0.05)" }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#6B6157", marginBottom: 14 }}>
-                    컨디션 최고였던 주 🏆
+                    体調が最高だった週 🏆
                   </div>
                   {insights.topWeeks.map((w, i) => (
                     <div key={w.week} style={{
@@ -506,10 +506,10 @@ export default function App() {
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, color: "#1A1614", fontWeight: 500 }}>
-                          {formatDate(w.week)} 주
+                          {formatDate(w.week)}の週
                         </div>
                         <div style={{ fontSize: 11, color: "#B0A898" }}>
-                          {w.totalHours}시간 근무 · {w.days}일 기록
+                          {w.totalHours}時間労働 · {w.days}日記録
                         </div>
                       </div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: conditionColor(w.avgCond) }}>
@@ -521,12 +521,12 @@ export default function App() {
 
                 <div style={{ background: "#F0FFF6", borderRadius: 20, padding: "20px", border: "1px solid #D4EDDA" }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: "#2D7A50", marginBottom: 10 }}>
-                    📌 활용 팁
+                    📌 活用のヒント
                   </div>
                   <div style={{ fontSize: 13, color: "#4A8C65", lineHeight: 1.8 }}>
-                    • 추천 시간보다 많은 주에 컨디션이 낮아지나요? → 일 줄이기 신호<br />
-                    • 2주 연속 컨디션 6 이하면 회복 주를 고려해보세요<br />
-                    • 데이터가 쌓일수록 추천이 정확해져요
+                    • 推奨時間より多い週に体調が下がる？ → 労働を減らすサイン<br />
+                    • 2週連続で体調6以下なら回復週を考えてみましょう<br />
+                    • データが増えるほど推薦精度が上がります
                   </div>
                 </div>
               </>
@@ -551,9 +551,9 @@ export default function App() {
         zIndex: 20,
       }}>
         {[
-          { id: "log", icon: "✏️", label: "오늘 기록" },
-          { id: "history", icon: "📅", label: "히스토리" },
-          { id: "insight", icon: "💡", label: "인사이트" },
+          { id: "log", icon: "✏️", label: "今日の記録" },
+          { id: "history", icon: "📅", label: "履歴" },
+          { id: "insight", icon: "💡", label: "分析" },
         ].map(t => (
           <button
             key={t.id}
