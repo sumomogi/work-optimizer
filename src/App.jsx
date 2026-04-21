@@ -34,10 +34,10 @@ const conditionLabel = (v) => {
 };
 
 const conditionColor = (v) => {
-  if (v >= 8) return "#5A7A6A";
-  if (v >= 6) return "#8AAF90";
-  if (v >= 4) return "#C4A882";
-  return "#C47A6A";
+  if (v >= 8) return "#34C759";
+  if (v >= 6) return "#30B0C7";
+  if (v >= 4) return "#FF9500";
+  return "#FF3B30";
 };
 
 // ── Input helpers ──
@@ -188,26 +188,27 @@ export default function App() {
   const recentLogs = [...logs].slice(-21);
 
   if (!ready) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#F4F2EE", fontFamily: "'Pretendard JP Variable', sans-serif" }}>
-      <div style={{ color: "#8A9E96", fontSize: 14 }}>読み込み中...</div>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#F2F2F7", fontFamily: "'Pretendard JP Variable', sans-serif" }}>
+      <div style={{ color: "#8E8E93", fontSize: 14 }}>読み込み中...</div>
     </div>
   );
 
   const S = {
-    bg: "#F4F2EE",
-    card: "#fff",
-    primary: "#5A7A6A",
-    primaryDark: "#3D5C4E",
-    text: "#1E2A24",
-    textSub: "#4E6358",
-    textMuted: "#8A9E96",
-    textLight: "#A8B5AF",
-    border: "#DDD9D1",
-    borderSub: "#D5DDD9",
-    subtle: "#E8E4DC",
-    inputBg: "#F7F5F0",
-    shadow: "0 2px 16px rgba(0,0,0,0.05)",
-    shadowSm: "0 1px 8px rgba(0,0,0,0.04)",
+    bg: "#F2F2F7",
+    card: "#FFFFFF",
+    primary: "#007AFF",
+    primaryDark: "#0062CC",
+    success: "#34C759",
+    text: "#000000",
+    textSub: "#3C3C43",
+    textMuted: "#8E8E93",
+    textLight: "#C7C7CC",
+    border: "#C6C6C8",
+    borderSub: "#D1D1D6",
+    subtle: "#E5E5EA",
+    inputBg: "#F2F2F7",
+    shadow: "0 2px 12px rgba(0,0,0,0.08)",
+    shadowSm: "0 1px 4px rgba(0,0,0,0.06)",
   };
 
   return (
@@ -303,7 +304,7 @@ export default function App() {
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="シフトや体調のメモ" rows={2} style={{ width: "100%", padding: 12, border: `1.5px solid ${S.borderSub}`, borderRadius: 12, fontSize: 13, color: S.text, background: S.inputBg, resize: "none", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
               </div>
 
-              <button onClick={saveLog} disabled={condition === null} style={{ width: "100%", padding: 16, borderRadius: 14, border: "none", background: condition === null ? S.subtle : (savedAnim ? "#4A9A72" : S.primary), color: condition === null ? S.textMuted : "#fff", fontSize: 15, fontWeight: 700, cursor: condition === null ? "not-allowed" : "pointer", transition: "background 0.3s" }}>
+              <button onClick={saveLog} disabled={condition === null} style={{ width: "100%", padding: 16, borderRadius: 14, border: "none", background: condition === null ? S.subtle : (savedAnim ? S.success : S.primary), color: condition === null ? S.textMuted : "#fff", fontSize: 15, fontWeight: 700, cursor: condition === null ? "not-allowed" : "pointer", transition: "background 0.3s" }}>
                 {savedAnim ? "✓ 保存しました！" : todayLog ? "記録を更新" : "今日の記録を保存"}
               </button>
             </div>
@@ -343,7 +344,7 @@ export default function App() {
                       contentStyle={{ borderRadius: 10, border: `1px solid ${S.borderSub}`, fontSize: 12 }}
                       formatter={(v, n) => n === "condition" ? [`${v}/10`, "体調"] : [formatYen(v), "収入"]}
                     />
-                    <Bar yAxisId="e" dataKey="earnings" fill="#C8D8D0" radius={[4, 4, 0, 0]} name="earnings" />
+                    <Bar yAxisId="e" dataKey="earnings" fill="#D1E4FF" radius={[4, 4, 0, 0]} name="earnings" />
                     <Line yAxisId="c" type="monotone" dataKey="condition" stroke={S.primary} strokeWidth={2} dot={{ r: 3, fill: S.primary }} name="condition" />
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -403,7 +404,7 @@ export default function App() {
                   <input type="number" value={rateInput} onChange={(e) => setRateInput(e.target.value)} placeholder="例: 1200" style={{ width: "100%", padding: "12px 12px 12px 28px", border: `1.5px solid ${S.borderSub}`, borderRadius: 10, fontSize: 15, fontWeight: 600, color: S.text, background: S.inputBg, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }} />
                 </div>
               </div>
-              <button onClick={saveSettings} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: settingsSaved ? "#4A9A72" : S.primary, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "background 0.3s" }}>
+              <button onClick={saveSettings} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: settingsSaved ? S.success : S.primary, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "background 0.3s" }}>
                 {settingsSaved ? "✓ 保存しました" : "設定を保存"}
               </button>
             </div>
@@ -416,7 +417,7 @@ export default function App() {
                 <div style={{ fontSize: 13, color: S.textMuted, lineHeight: 1.7, marginBottom: 16 }}>
                   収入を入力した日が<br />あと <span style={{ color: S.primary, fontWeight: 700 }}>{Math.max(0, 5 - logsWithData.length)}日</span> 分あれば分析できます
                 </div>
-                <div style={{ background: "#EEF2EF", borderRadius: 12, padding: "12px 16px" }}>
+                <div style={{ background: "#EBF3FF", borderRadius: 12, padding: "12px 16px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 12, color: S.textMuted }}>データ収集進捗</span>
                     <span style={{ fontSize: 13, fontWeight: 700, color: S.primary }}>{logsWithData.length} / 5日</span>
@@ -432,7 +433,7 @@ export default function App() {
             {opt && (
               <>
                 {/* Optimal pattern */}
-                <div style={{ background: `linear-gradient(135deg, ${S.primary}, ${S.primaryDark})`, borderRadius: 20, padding: "24px", marginBottom: 16, boxShadow: "0 8px 24px rgba(90,122,106,0.3)" }}>
+                <div style={{ background: `linear-gradient(135deg, ${S.primary}, ${S.primaryDark})`, borderRadius: 20, padding: "24px", marginBottom: 16, boxShadow: "0 8px 24px rgba(0,122,255,0.28)" }}>
                   <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 4 }}>データから導いた最適パターン</div>
                   <div style={{ fontSize: 14, color: "rgba(255,255,255,0.9)", marginBottom: 20 }}>体調×効率が最も高かった日の平均</div>
                   <div style={{ display: "flex", gap: 24 }}>
@@ -457,11 +458,11 @@ export default function App() {
                     <div style={{ fontSize: 11, color: S.textMuted, marginBottom: 20 }}>最適パターンで働いた場合の計算</div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-                      <div style={{ background: "#EEF5F1", borderRadius: 14, padding: 16, textAlign: "center" }}>
+                      <div style={{ background: "#EBF3FF", borderRadius: 14, padding: 16, textAlign: "center" }}>
                         <div style={{ fontSize: 36, fontWeight: 900, color: S.primary }}>{opt.plan.daysPerWeek}</div>
                         <div style={{ fontSize: 12, color: S.textSub, fontWeight: 600 }}>日/週</div>
                       </div>
-                      <div style={{ background: "#EEF5F1", borderRadius: 14, padding: 16, textAlign: "center" }}>
+                      <div style={{ background: "#EBF3FF", borderRadius: 14, padding: 16, textAlign: "center" }}>
                         <div style={{ fontSize: 36, fontWeight: 900, color: S.primary }}>{opt.optimalHours}</div>
                         <div style={{ fontSize: 12, color: S.textSub, fontWeight: 600 }}>時間/日</div>
                       </div>
@@ -493,7 +494,7 @@ export default function App() {
                         <span>目標 {formatYen(settings.monthlyTarget)}</span>
                       </div>
                       <div style={{ background: S.border, borderRadius: 8, height: 10, overflow: "hidden" }}>
-                        <div style={{ width: `${Math.min(100, (mp.totalEarned / settings.monthlyTarget) * 100)}%`, height: "100%", background: mp.totalEarned >= settings.monthlyTarget ? "#4A9A72" : S.primary, borderRadius: 8, transition: "width 0.4s" }} />
+                        <div style={{ width: `${Math.min(100, (mp.totalEarned / settings.monthlyTarget) * 100)}%`, height: "100%", background: mp.totalEarned >= settings.monthlyTarget ? S.success : S.primary, borderRadius: 8, transition: "width 0.4s" }} />
                       </div>
                       <div style={{ fontSize: 12, color: S.primary, fontWeight: 600, marginTop: 4 }}>
                         {Math.round((mp.totalEarned / settings.monthlyTarget) * 100)}% 達成
@@ -514,7 +515,7 @@ export default function App() {
                     </div>
 
                     {mp.totalEarned < settings.monthlyTarget && mp.avgDaily > 0 && (
-                      <div style={{ marginTop: 12, padding: "10px 14px", background: "#EEF5F1", borderRadius: 12, fontSize: 13, color: S.textSub }}>
+                      <div style={{ marginTop: 12, padding: "10px 14px", background: "#EBF3FF", borderRadius: 12, fontSize: 13, color: S.textSub }}>
                         あと <strong style={{ color: S.text }}>{Math.ceil((settings.monthlyTarget - mp.totalEarned) / mp.avgDaily)}日</strong> 働けば達成できます
                       </div>
                     )}
@@ -522,9 +523,9 @@ export default function App() {
                 )}
 
                 {/* Tips */}
-                <div style={{ background: "#EEF5F1", borderRadius: 20, padding: 20, border: `1px solid #C5DDD0` }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#3A6855", marginBottom: 10 }}>📌 活用のヒント</div>
-                  <div style={{ fontSize: 13, color: "#4A7558", lineHeight: 1.9 }}>
+                <div style={{ background: "#EBF3FF", borderRadius: 20, padding: 20, border: "1px solid #B8D4FF" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#0062CC", marginBottom: 10 }}>📌 活用のヒント</div>
+                  <div style={{ fontSize: 13, color: "#1C3A6E", lineHeight: 1.9 }}>
                     • 毎日記録するほどおすすめ精度が上がります<br />
                     • 体調が悪い日は無理せず早上がりも◎<br />
                     • 最適時間より長く働くと時給効率が下がる傾向があります
